@@ -18,6 +18,7 @@
 
 //#define FASTLED_ALLOW_INTERRUPTS 1
 //#define INTERRUPT_THRESHOLD 1
+#define FASTLED_ESP8266_RAW_PIN_ORDER 
 #define FASTLED_INTERRUPT_RETRY_COUNT 0
 
 #include <FastLED.h>
@@ -40,6 +41,7 @@ extern "C" {
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
 #include "Field.h"
+#include "Map.h"
 
 //#define RECV_PIN D4
 //IRrecv irReceiver(RECV_PIN);
@@ -53,11 +55,11 @@ ESP8266HTTPUpdateServer httpUpdateServer;
 #include "FSBrowser.h"
 
 #define DATA_PIN      D5
-#define LED_TYPE      WS2811
-#define COLOR_ORDER   RGB
-#define NUM_LEDS      200
+#define LED_TYPE      WS2812B
+#define COLOR_ORDER   GRB
+#define NUM_LEDS      224
 
-#define MILLI_AMPS         2000 // IMPORTANT: set the max milli-Amps of your power supply (4A = 4000mA)
+#define MILLI_AMPS         5000 // IMPORTANT: set the max milli-Amps of your power supply (4A = 4000mA)
 #define FRAMES_PER_SECOND  120  // here you can control the speed. With the Access Point / Web Server the animations run a bit slower.
 
 const bool apMode = false;
@@ -71,6 +73,8 @@ const bool apMode = false;
 // Wi-Fi network to connect to (if not in AP mode)
 // char* ssid = "your-ssid";
 // char* password = "your-password";
+
+
 
 
 CRGB leds[NUM_LEDS];
@@ -143,6 +147,8 @@ typedef PatternAndName PatternAndNameList[];
 // List of patterns to cycle through.  Each is defined as a separate function below.
 
 PatternAndNameList patterns = {
+  { calebTestPattern,       "Caleb Test Pattern"},
+  { calebSnake,       "Caleb's Snake"},
   { pride,                  "Pride" },
   { colorWaves,             "Color Waves" },
 
@@ -215,7 +221,10 @@ const String paletteNames[paletteCount] = {
 
 #include "Fields.h"
 
+
+
 void setup() {
+  delay(5000);
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
   Serial.begin(115200);
@@ -971,6 +980,74 @@ void strandTest()
 
   leds[i] = solidColor;
 }
+
+void calebTestPattern(){
+  CRGBPalette16 palette = palettes[currentPaletteIndex];
+
+  for ( int i = 0; i < NUM_LEDS; i++) {
+    uint8_t dist = sqrt(xCoords[i]*xCoords[i]+yCoords[i]*yCoords[i]);
+    leds[i] = ColorFromPalette(palette, gHue + dist*50, 255);
+  }
+}
+
+int index(uint8_t x,uint8_t y){
+  for(int i=0; i<NUM_LEDS;i++){
+    if(xCoords[i]==x){
+
+      if(yCoords[i]==y){
+        return i;
+      }
+
+    }
+  }
+  return -1;
+}
+
+void moveDir(uint8_t &dir,uint8_t &x,uint8_t &y){
+  bool looping = true;
+  uint8_t prevDir = dir;
+  while(looping){
+    uint8_t mx=0, my=0;
+    switch(dir){
+      case 0:
+        mx = -1;
+        break;
+      case 1:
+        my = 1; 
+        break;
+      case 2:
+        mx=1;
+        break;
+      case 3:
+        my=-1;
+        break;
+    }
+    if(index(x+mx,y+my)!=-1){
+       x+=mx;
+       y+=my;
+       looping = false;
+    }else{
+      dir = random8(4);
+      while(dir==prevDir&&dir==(prevDir+2)%4){//choose a perpendicular direction
+        dir = random8(4);
+      }
+    }
+  }
+}
+
+void calebSnake(){
+  static uint8_t startIndex = random8(NUM_LEDS);
+  static uint8_t x=xCoords[startIndex],y=yCoords[startIndex],dir=0; //0 right, 1 up, 2 left, 3 down
+  fadeToBlackBy( leds, NUM_LEDS, 20);
+  moveDir(dir,x,y);
+  leds[index(x,y)] = ColorFromPalette(palettes[currentPaletteIndex], gHue, 255);
+  leds[index(x,y)+1] = ColorFromPalette(palettes[currentPaletteIndex], gHue, 255);
+//  for ( int i = 0; i < NUM_LEDS; i++) {
+//    uint8_t dist = sqrt(xCoords[i]*xCoords[i]+yCoords[i]*yCoords[i]);
+//    leds[i] = ColorFromPalette(palette, gHue + dist*50, 255);
+//  }
+}
+
 
 void showSolidColor()
 {
